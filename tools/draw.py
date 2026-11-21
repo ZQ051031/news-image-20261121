@@ -1,182 +1,305 @@
-"""Renders entry.png (run once with Pillow; main.py just copies the result)."""
+"""Draws entry.png: a 1024x1024 front-page poster summing up the world's news
+of Saturday 21 November 2026. Run once with Pillow; main.py copies the result.
+Authored for the make.fun news-image-20261121 bounty.
+"""
 import math
 import random
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 W = H = 1024
-F = "/usr/share/fonts/truetype/liberation/"
-def font(name, size): return ImageFont.truetype(F + name, size)
-BOLD, REG, NAR, SERIF = "LiberationSans-Bold.ttf", "LiberationSans-Regular.ttf", "LiberationSansNarrow-Bold.ttf", "LiberationSerif-Bold.ttf"
+FONT_DIR = "/usr/share/fonts/truetype/liberation/"
+DEJAVU_BOLD = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 
-INK = (14, 16, 24)
-PAPER = (240, 234, 220)
+
+def load(name, size):
+    return ImageFont.truetype(FONT_DIR + name, size)
+
+
+SERIF = "LiberationSerif-Bold.ttf"
+SANS_B = "LiberationSans-Bold.ttf"
+SANS_R = "LiberationSans-Regular.ttf"
+SANS_N = "LiberationSansNarrow-Bold.ttf"
+
+# palette
+INK = (14, 16, 24)          # near-black navy (page background)
+PAPER = (240, 234, 220)     # warm newsprint
+PAPER_DIM = (205, 200, 190)
+MUTED = (150, 145, 140)
 RED = (226, 54, 40)
 ORANGE = (255, 140, 30)
+GOLD = (220, 190, 110)
+SEA_TOP = (12, 18, 40)
+SEA_BOT = (42, 46, 70)
+LAND = (34, 30, 28)
+LAND_LBL = (110, 96, 84)
+
 random.seed(21112026)
 
-img = Image.new("RGB", (W, H), INK)
-d = ImageDraw.Draw(img)
+canvas = Image.new("RGB", (W, H), INK)
+d = ImageDraw.Draw(canvas)
 
-# ---------- masthead ----------
-d.rectangle([0, 0, W, 92], fill=PAPER)
-d.text((32, 14), "THE WORLD ON EDGE", font=font(SERIF, 52), fill=INK)
-d.text((W - 32, 22), "SATURDAY", font=font(BOLD, 22), fill=RED, anchor="ra")
-d.text((W - 32, 50), "21 NOVEMBER 2026", font=font(BOLD, 26), fill=INK, anchor="ra")
-d.rectangle([0, 92, W, 98], fill=RED)
 
-# ---------- hero: Strait of Hormuz ----------
-HT, HB = 98, 560
-hero = Image.new("RGB", (W, HB - HT), (10, 24, 44))
+def text_wrap(draw, words, font, max_w):
+    """Greedy word wrap; returns a list of lines that fit max_w."""
+    lines, cur = [], ""
+    for w in words.split():
+        trial = (cur + " " + w).strip()
+        if draw.textlength(trial, font=font) <= max_w:
+            cur = trial
+        else:
+            if cur:
+                lines.append(cur)
+            cur = w
+    if cur:
+        lines.append(cur)
+    return lines
+
+
+def block(draw, x, y, text, font, fill, max_w, leading):
+    """Draw a wrapped paragraph; returns the y after the last line."""
+    for line in text_wrap(draw, text, font, max_w):
+        draw.text((x, y), line, font=font, fill=fill)
+        y += leading
+    return y
+
+
+# ---------------------------------------------------------------- masthead
+d.rectangle([0, 0, W, 90], fill=PAPER)
+d.text((30, 12), "THE WORLD ON EDGE", font=load(SERIF, 50), fill=INK)
+d.text((W - 30, 20), "SATURDAY", font=load(SANS_B, 21), fill=RED, anchor="ra")
+d.text((W - 30, 48), "21 NOVEMBER 2026", font=load(SANS_B, 25), fill=INK, anchor="ra")
+d.rectangle([0, 90, W, 96], fill=RED)
+
+
+# ------------------------------------------------------------- hero: Hormuz
+HERO_T, HERO_B = 96, 556
+hero_h = HERO_B - HERO_T
+hero = Image.new("RGB", (W, hero_h), SEA_TOP)
 hd = ImageDraw.Draw(hero)
-hh = HB - HT
-for y in range(hh):  # night sky / sea gradient
-    t = y / hh
-    hd.line([(0, y), (W, y)], fill=(int(12 + 30 * t), int(18 + 28 * t), int(40 + 30 * t)))
-# land masses: Iran (top) and Musandam peninsula (bottom right)
-hd.polygon([(0, 0), (W, 0), (W, 70), (860, 95), (720, 80), (560, 110), (420, 95), (260, 120), (120, 105), (0, 130)], fill=(34, 30, 28))
-hd.polygon([(1024, 462), (1024, 230), (960, 250), (900, 300), (870, 360), (820, 400), (700, 430), (560, 462)], fill=(34, 30, 28))
-hd.text((60, 30), "IRAN", font=font(BOLD, 30), fill=(110, 96, 84))
-hd.text((900, 405), "OMAN", font=font(BOLD, 24), fill=(110, 96, 84))
-hd.text((890, 380), "Khasab", font=font(REG, 16), fill=(150, 135, 120))
-# shipping lane
-for x in range(0, W, 36):
-    hd.line([(x, 250 + 20 * math.sin(x / 140)), (x + 18, 250 + 20 * math.sin((x + 18) / 140))], fill=(70, 100, 140), width=2)
 
-def tanker(cx, cy, s, burning):
-    hull = [(cx - 90 * s, cy), (cx + 100 * s, cy), (cx + 80 * s, cy + 26 * s), (cx - 80 * s, cy + 26 * s)]
-    hd.polygon(hull, fill=(20, 20, 24))
-    hd.rectangle([cx + 40 * s, cy - 30 * s, cx + 78 * s, cy], fill=(28, 28, 34))
-    hd.rectangle([cx - 70 * s, cy - 8 * s, cx + 30 * s, cy], fill=(40, 40, 46))
-    if burning:
-        glow = Image.new("RGBA", hero.size, (0, 0, 0, 0))
-        gd = ImageDraw.Draw(glow)
-        gd.ellipse([cx - 160 * s, cy - 150 * s, cx + 120 * s, cy + 40 * s], fill=(255, 110, 20, 120))
-        glow = glow.filter(ImageFilter.GaussianBlur(40 * s))
-        hero.paste(glow, (0, 0), glow)
-        for i in range(60):
-            fx = cx - 30 * s + random.gauss(0, 22 * s)
-            fy = cy - abs(random.gauss(0, 45 * s))
-            r = random.uniform(5, 16) * s
-            col = random.choice([(255, 200, 60), ORANGE, RED, (255, 90, 20)])
-            hd.ellipse([fx - r, fy - r, fx + r, fy + r], fill=col)
-        for i in range(25):  # smoke
-            sx = cx - 40 * s + i * 6 * s + random.gauss(0, 10)
-            sy = cy - 80 * s - i * 9 * s
-            r = (14 + i * 1.6) * s
-            g = 60 + random.randint(0, 25)
-            hd.ellipse([sx - r, sy - r, sx + r, sy + r], fill=(g, g, g + 6))
+# night sea: vertical gradient, darker at top
+for yy in range(hero_h):
+    t = yy / hero_h
+    hd.line([(0, yy), (W, yy)],
+            fill=(int(SEA_TOP[0] + (SEA_BOT[0] - SEA_TOP[0]) * t),
+                  int(SEA_TOP[1] + (SEA_BOT[1] - SEA_TOP[1]) * t),
+                  int(SEA_TOP[2] + (SEA_BOT[2] - SEA_TOP[2]) * t)))
 
-tanker(300, 300, 1.25, True)
-tanker(680, 235, 0.9, True)
-# downed drone
-dx, dy = 840, 150
-hd.polygon([(dx - 60, dy), (dx + 60, dy - 6), (dx + 60, dy + 6)], fill=(170, 175, 185))
-hd.line([(dx - 10, dy - 40), (dx + 20, dy + 40)], fill=(170, 175, 185), width=8)
-hd.line([(dx + 40, dy - 30), (dx + 10, dy + 30)], fill=(170, 175, 185), width=5)
-for k in range(5):
-    hd.line([(dx + 60 + k * 14, dy - 8 - k * 12), (dx + 70 + k * 14, dy - 14 - k * 12)], fill=(120, 120, 130), width=3)
-hd.line([(dx - 34, dy - 34), (dx + 34, dy + 34)], fill=RED, width=9)
-hd.line([(dx - 34, dy + 34), (dx + 34, dy - 34)], fill=RED, width=9)
-hd.text((dx, dy + 52), "US MQ-9 'downed'", font=font(BOLD, 16), fill=(220, 220, 230), anchor="ma")
-img.paste(hero, (0, HT))
+# land: Iran along the top edge, Oman's Musandam peninsula bottom-right
+hd.polygon([(0, 0), (W, 0), (W, 64), (880, 88), (700, 74), (520, 104),
+            (360, 88), (200, 112), (80, 100), (0, 124)], fill=LAND)
+hd.polygon([(W, hero_h), (W, 218), (968, 240), (912, 292), (872, 352),
+            (824, 392), (700, 424), (560, hero_h)], fill=LAND)
+hd.text((56, 26), "IRAN", font=load(SANS_B, 28), fill=LAND_LBL)
+hd.text((898, 396), "OMAN", font=load(SANS_B, 23), fill=LAND_LBL)
+hd.text((884, 372), "Khasab", font=load(SANS_R, 15), fill=(150, 135, 120))
+hd.text((W // 2, hero_h - 34), "STRAIT OF HORMUZ",
+        font=load(SANS_B, 15), fill=(90, 120, 160), anchor="ma")
 
-# hero headline
-d.rectangle([0, 455, W, HB], fill=(0, 0, 0))
-d.rectangle([32, 470, 140, 498], fill=RED)
-d.text((86, 484), "TOP STORY", font=font(BOLD, 17), fill=PAPER, anchor="mm")
-d.text((156, 466), "TANKERS HIT IN HORMUZ", font=font(BOLD, 44), fill=PAPER)
-d.text((32, 514), "Two tankers struck off Oman  •  Iran claims it downed a US drone  •  Trump threatens war over 'dirty bomb' plot", font=font(REG, 17), fill=(205, 200, 190))
-d.text((32, 536), "COP31 overtime  •  Russia's massive Ukraine strike spills into Poland  •  G-3 summit afterglow",
-       font=font(REG, 17), fill=(150, 145, 140))
+# shipping lane: a dashed sine curve across the strait
+for xx in range(0, W, 34):
+    x2 = xx + 17
+    y1 = 244 + 18 * math.sin(xx / 130)
+    y2 = 244 + 18 * math.sin(x2 / 130)
+    hd.line([(xx, y1), (x2, y2)], fill=(70, 100, 140), width=2)
 
-# ---------- tiles ----------
-TILES_T = 572
-cols, rows = 3, 2
-gap = 12
-tw = (W - 2 * 24 - (cols - 1) * gap) // cols
-th = (H - TILES_T - 52 - (rows - 1) * gap) // rows
 
-def tile(i, bg, title, sub, art):
-    c, r = i % cols, i // cols
-    x0 = 24 + c * (tw + gap)
-    y0 = TILES_T + r * (th + gap)
-    d.rounded_rectangle([x0, y0, x0 + tw, y0 + th], 10, fill=bg)
-    art(x0, y0, x0 + tw, y0 + th - 70)
-    d.text((x0 + 14, y0 + th - 66), title, font=font(BOLD, 22), fill=PAPER)
-    yy = y0 + th - 38
-    for line in sub:
-        d.text((x0 + 14, yy), line, font=font(REG, 14), fill=(220, 215, 205))
+def draw_tanker(cx, cy, s, on_fire):
+    """A crude-oil tanker seen side-on; on_fire adds glow, flames, smoke."""
+    hull = [(cx - 92 * s, cy), (cx + 102 * s, cy),
+            (cx + 82 * s, cy + 26 * s), (cx - 82 * s, cy + 26 * s)]
+    hd.polygon(hull, fill=(18, 18, 22))
+    hd.rectangle([cx + 42 * s, cy - 30 * s, cx + 80 * s, cy], fill=(28, 28, 34))
+    hd.rectangle([cx - 72 * s, cy - 8 * s, cx + 30 * s, cy], fill=(42, 42, 48))
+    hd.rectangle([cx - 92 * s, cy - 4 * s, cx + 102 * s, cy + 2 * s],
+                 fill=(60, 30, 26))
+    if not on_fire:
+        return
+    glow = Image.new("RGBA", hero.size, (0, 0, 0, 0))
+    gd = ImageDraw.Draw(glow)
+    gd.ellipse([cx - 150 * s, cy - 140 * s, cx + 130 * s, cy + 50 * s],
+               fill=(255, 110, 20, 110))
+    glow = glow.filter(ImageFilter.GaussianBlur(int(38 * s)))
+    hero.paste(glow, (0, 0), glow)
+    for _ in range(55):
+        fx = cx - 25 * s + random.gauss(0, 24 * s)
+        fy = cy - abs(random.gauss(0, 48 * s))
+        r = random.uniform(5, 15) * s
+        col = random.choice([(255, 200, 60), ORANGE, RED, (255, 90, 20)])
+        hd.ellipse([fx - r, fy - r, fx + r, fy + r], fill=col)
+    for i in range(22):
+        sx = cx - 30 * s + i * 6 * s + random.gauss(0, 9)
+        sy = cy - 84 * s - i * 9 * s
+        r = (13 + i * 1.5) * s
+        g = 58 + random.randint(0, 26)
+        hd.ellipse([sx - r, sy - r, sx + r, sy + r], fill=(g, g, g + 6))
+
+
+draw_tanker(300, 296, 1.22, True)
+draw_tanker(688, 232, 0.88, True)
+
+
+def draw_downed_drone(dx, dy):
+    """A US MQ-9 silhouette, crossed out in red, with a caption."""
+    hd.polygon([(dx - 58, dy), (dx + 58, dy - 6), (dx + 58, dy + 6)],
+               fill=(170, 175, 185))
+    hd.line([(dx - 8, dy - 38), (dx + 18, dy + 38)], fill=(170, 175, 185), width=8)
+    hd.line([(dx + 38, dy - 28), (dx + 8, dy + 28)], fill=(170, 175, 185), width=5)
+    for k in range(4):
+        hd.line([(dx + 58 + k * 13, dy - 6 - k * 11),
+                 (dx + 68 + k * 13, dy - 12 - k * 11)],
+                fill=(120, 120, 130), width=3)
+    hd.line([(dx - 32, dy - 32), (dx + 32, dy + 32)], fill=RED, width=9)
+    hd.line([(dx - 32, dy + 32), (dx + 32, dy - 32)], fill=RED, width=9)
+    hd.text((dx, dy + 50), "US MQ-9 'downed'", font=load(SANS_B, 15),
+            fill=(220, 220, 230), anchor="ma")
+
+
+draw_downed_drone(838, 148)
+canvas.paste(hero, (0, HERO_T))
+
+
+# ---------------------------------------------------------- headline band
+BAND_T, BAND_B = 452, HERO_B
+d.rectangle([0, BAND_T, W, BAND_B], fill=(0, 0, 0))
+d.rectangle([30, BAND_T + 14, 138, BAND_T + 42], fill=RED)
+d.text((84, BAND_T + 28), "TOP STORY", font=load(SANS_B, 16), fill=PAPER, anchor="mm")
+d.text((152, BAND_T + 10), "TANKERS HIT IN HORMUZ", font=load(SANS_B, 42), fill=PAPER)
+d.text((30, BAND_T + 58),
+       "Second tanker struck off Oman on Saturday  •  Iran says it downed a US drone  •  US–Iran talks stall",
+       font=load(SANS_R, 16), fill=PAPER_DIM)
+d.text((30, BAND_T + 80),
+       "COP31 overtime  •  Russia's huge Ukraine strike spills into Poland  •  G-3 summit afterglow",
+       font=load(SANS_R, 16), fill=MUTED)
+
+# ------------------------------------------------------------------- tiles
+TILES_T = 568
+COLS, ROWS = 3, 2
+GAP = 12
+MARGIN = 24
+TW = (W - 2 * MARGIN - (COLS - 1) * GAP) // COLS
+TH = (H - TILES_T - 48 - (ROWS - 1) * GAP) // ROWS
+ART_H = TH - 72
+
+
+def tile(i, bg, title, lines, art):
+    c, r = i % COLS, i // COLS
+    x0 = MARGIN + c * (TW + GAP)
+    y0 = TILES_T + r * (TH + GAP)
+    d.rounded_rectangle([x0, y0, x0 + TW, y0 + TH], 10, fill=bg)
+    art(x0, y0, x0 + TW, y0 + ART_H)
+    d.text((x0 + 13, y0 + ART_H + 6), title, font=load(SANS_B, 21), fill=PAPER)
+    yy = y0 + ART_H + 34
+    for ln in lines:
+        d.text((x0 + 13, yy), ln, font=load(SANS_R, 13), fill=(220, 215, 205))
         yy += 16
 
+
 def art_cop(x0, y0, x1, y1):
-    cx, cy = (x0 + x1) // 2, (y0 + y1) // 2 + 6
-    d.ellipse([cx - 42, cy - 42, cx + 42, cy + 42], fill=(40, 110, 160))
-    d.polygon([(cx - 30, cy - 20), (cx - 5, cy - 34), (cx + 10, cy - 10), (cx - 10, cy + 8), (cx - 28, cy)], fill=(70, 150, 80))
-    d.polygon([(cx + 12, cy + 6), (cx + 34, cy + 2), (cx + 28, cy + 30), (cx + 14, cy + 28)], fill=(70, 150, 80))
-    # clock past deadline
-    kx, ky = cx + 70, cy - 20
-    d.ellipse([kx - 22, ky - 22, kx + 22, ky + 22], fill=PAPER)
-    d.line([(kx, ky), (kx, ky - 15)], fill=INK, width=3)
-    d.line([(kx, ky), (kx + 12, ky + 4)], fill=RED, width=3)
-    # oil drop crossed
-    ox, oy = cx - 72, cy - 14
-    d.polygon([(ox, oy - 26), (ox - 15, oy + 2), (ox + 15, oy + 2)], fill=INK)
-    d.ellipse([ox - 15, oy - 12, ox + 15, oy + 18], fill=INK)
-    d.line([(ox - 22, oy - 26), (ox + 22, oy + 22)], fill=RED, width=4)
+    """A warming globe with a clock running past the deadline."""
+    cx, cy = (x0 + x1) // 2 - 30, (y0 + y1) // 2 + 4
+    d.ellipse([cx - 40, cy - 40, cx + 40, cy + 40], fill=(40, 110, 160))
+    d.polygon([(cx - 28, cy - 18), (cx - 4, cy - 32), (cx + 10, cy - 8),
+               (cx - 8, cy + 10), (cx - 26, cy + 2)], fill=(70, 150, 80))
+    d.polygon([(cx + 12, cy + 8), (cx + 32, cy + 4), (cx + 26, cy + 28),
+               (cx + 12, cy + 26)], fill=(70, 150, 80))
+    kx, ky = cx + 74, cy - 18
+    d.ellipse([kx - 21, ky - 21, kx + 21, ky + 21], fill=PAPER)
+    d.line([(kx, ky), (kx, ky - 14)], fill=INK, width=3)
+    d.line([(kx, ky), (kx + 11, ky + 4)], fill=RED, width=3)
+    ox, oy = cx + 72, cy + 22
+    d.polygon([(ox, oy - 24), (ox - 14, oy + 2), (ox + 14, oy + 2)], fill=INK)
+    d.ellipse([ox - 14, oy - 11, ox + 14, oy + 17], fill=INK)
+    d.line([(ox - 20, oy - 24), (ox + 20, oy + 20)], fill=RED, width=4)
+
 
 def art_ukraine(x0, y0, x1, y1):
+    """Ukrainian flag with incoming missile streaks and a Poland marker."""
     cx, cy = (x0 + x1) // 2, (y0 + y1) // 2
-    d.rectangle([x0 + 30, cy - 14, x1 - 30, cy + 14], fill=(0, 87, 183))
-    d.rectangle([x0 + 30, cy + 14, x1 - 30, cy + 42], fill=(255, 215, 0))
-    for k, (mx, my) in enumerate([(cx - 60, cy - 20), (cx - 5, cy - 28), (cx + 55, cy - 16)]):
-        d.line([(mx - 30, my - 30), (mx, my)], fill=(230, 230, 230), width=6)
-        d.polygon([(mx, my), (mx - 12, my - 2), (mx - 2, my - 12)], fill=RED)
-    d.text((x1 - 34, y0 + 12), "PL", font=font(BOLD, 18), fill=RED, anchor="ra")
+    d.rectangle([x0 + 28, cy - 12, x1 - 28, cy + 12], fill=(0, 87, 183))
+    d.rectangle([x0 + 28, cy + 12, x1 - 28, cy + 38], fill=(255, 215, 0))
+    for mx, my in [(cx - 58, cy - 18), (cx - 4, cy - 26), (cx + 54, cy - 14)]:
+        d.line([(mx - 28, my - 28), (mx, my)], fill=(235, 235, 235), width=6)
+        d.polygon([(mx, my), (mx - 11, my - 2), (mx - 2, my - 11)], fill=RED)
+    d.text((x1 - 30, y0 + 10), "PL", font=load(SANS_B, 17), fill=RED, anchor="ra")
+
 
 def art_g3(x0, y0, x1, y1):
+    """Three linked rings: Washington, Beijing, Moscow."""
     cx, cy = (x0 + x1) // 2, (y0 + y1) // 2 + 4
-    for dx, col, lab in [(-62, (60, 90, 200), "US"), (0, (220, 40, 40), "CN"), (62, (240, 240, 240), "RU")]:
-        d.ellipse([cx + dx - 36, cy - 36, cx + dx + 36, cy + 36], outline=col, width=7)
-        d.text((cx + dx, cy), lab, font=font(BOLD, 20), fill=col, anchor="mm")
+    for dx, col, lab in [(-60, (60, 90, 200), "US"),
+                         (0, (220, 40, 40), "CN"),
+                         (60, (240, 240, 240), "RU")]:
+        d.ellipse([cx + dx - 34, cy - 34, cx + dx + 34, cy + 34],
+                  outline=col, width=7)
+        d.text((cx + dx, cy), lab, font=load(SANS_B, 19), fill=col, anchor="mm")
+
 
 def art_outage(x0, y0, x1, y1):
+    """A power line that snaps mid-span; the grid goes dark after it."""
     cx, cy = (x0 + x1) // 2, (y0 + y1) // 2
-    pts = [(x0 + 24, cy), (cx - 50, cy), (cx - 35, cy - 34), (cx - 15, cy + 34), (cx, cy - 10), (cx + 10, cy)]
+    pts = [(x0 + 22, cy), (cx - 48, cy), (cx - 34, cy - 32),
+           (cx - 14, cy + 32), (cx, cy - 8), (cx + 8, cy)]
     d.line(pts, fill=(80, 255, 140), width=4)
-    d.line([(cx + 10, cy), (x1 - 24, cy)], fill=(80, 80, 80), width=4)
-    d.text((cx + 60, cy - 34), "ERR", font=font(BOLD, 26), fill=RED, anchor="mm")
-    d.text((cx + 60, cy + 30), "✈ $ ⚠", font=ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 22), fill=(230, 230, 230), anchor="mm")
+    d.line([(cx + 8, cy), (x1 - 22, cy)], fill=(80, 80, 80), width=4)
+    d.text((cx + 58, cy - 32), "ERR", font=load(SANS_B, 25), fill=RED, anchor="mm")
+    d.text((cx + 58, cy + 28), "✈ $ ⚠",
+           font=ImageFont.truetype(DEJAVU_BOLD, 21),
+           fill=(230, 230, 230), anchor="mm")
+
 
 def art_icj(x0, y0, x1, y1):
-    cx, cy = (x0 + x1) // 2, y0 + 22
-    d.line([(cx, cy), (cx, y1 - 10)], fill=(220, 190, 110), width=5)
-    d.line([(cx - 70, cy + 10), (cx + 70, cy + 10)], fill=(220, 190, 110), width=5)
-    d.rectangle([cx - 30, y1 - 14, cx + 30, y1 - 6], fill=(220, 190, 110))
-    for sx, drop in [(-70, 22), (70, 2)]:
-        px, py = cx + sx, cy + 10
-        d.line([(px, py), (px - 22, py + 40 + drop)], fill=(220, 190, 110), width=2)
-        d.line([(px, py), (px + 22, py + 40 + drop)], fill=(220, 190, 110), width=2)
-        d.pieslice([px - 28, py + 26 + drop, px + 28, py + 56 + drop], 0, 180, fill=(220, 190, 110))
+    """Scales of justice, tipped toward the victims."""
+    cx, cy = (x0 + x1) // 2, y0 + 20
+    d.line([(cx, cy), (cx, y1 - 8)], fill=GOLD, width=5)
+    d.line([(cx - 66, cy + 8), (cx + 66, cy + 8)], fill=GOLD, width=5)
+    d.rectangle([cx - 28, y1 - 12, cx + 28, y1 - 4], fill=GOLD)
+    for sx, drop in [(-66, 20), (66, 2)]:
+        px, py = cx + sx, cy + 8
+        d.line([(px, py), (px - 20, py + 38 + drop)], fill=GOLD, width=2)
+        d.line([(px, py), (px + 20, py + 38 + drop)], fill=GOLD, width=2)
+        d.pieslice([px - 26, py + 24 + drop, px + 26, py + 54 + drop],
+                   0, 180, fill=GOLD)
 
-def art_protest(x0, y0, x1, y1):
-    for k, (px, txt) in enumerate([(x0 + 60, "RENT"), ((x0 + x1) // 2, "SCHOOLS"), (x1 - 60, "FUTURE")]):
-        top = y0 + 20 + (k % 2) * 14
-        d.line([(px, top + 30), (px, y1)], fill=(160, 120, 80), width=5)
-        d.rectangle([px - 46, top, px + 46, top + 36], fill=PAPER)
-        d.text((px, top + 18), txt, font=font(NAR, 17), fill=INK, anchor="mm")
 
-tile(0, (30, 70, 56), "COP31 goes to overtime", ["Antalya talks stall as draft deal", "drops all mention of fossil fuels"], art_cop)
-tile(1, (36, 40, 70), "Russia pounds Ukraine", ["Hundreds of drones & missiles; strays", "land in Poland; Denmark expels attaché"], art_ukraine)
-tile(2, (70, 30, 34), "After the 'G-3' summit", ["Trump, Xi, Putin met in Shenzhen;", "deal on humans-in-the-loop military AI"], art_g3)
-tile(3, (40, 40, 44), "US outages, cyber chief out", ["Banks, flights, systems down; Trump", "fires National Cyber Director"], art_outage)
-tile(4, (60, 48, 28), "Myanmar guilty of genocide", ["ICJ landmark ruling on the Rohingya", "reverberates around the world"], art_icj)
-tile(5, (76, 40, 70), "Europe's youth march on", ["Protests over rent, schools and", "military spending enter the weekend"], art_protest)
+def art_ukeu(x0, y0, x1, y1):
+    """EU stars beside a Union Jack, with the youth-mobility figure."""
+    cx, cy = (x0 + x1) // 2, (y0 + y1) // 2 - 6
+    d.ellipse([cx - 78, cy - 34, cx - 6, cy + 34], fill=(0, 51, 153))
+    for k in range(12):
+        a = -math.pi / 2 + k * math.pi / 6
+        sx, sy = cx - 42 + 24 * math.cos(a), cy + 24 * math.sin(a)
+        d.ellipse([sx - 2, sy - 2, sx + 2, sy + 2], fill=(255, 204, 0))
+    d.rectangle([cx + 6, cy - 34, cx + 78, cy + 34], fill=(1, 33, 105))
+    d.line([(cx + 6, cy - 34), (cx + 78, cy + 34)], fill=PAPER, width=5)
+    d.line([(cx + 6, cy + 34), (cx + 78, cy - 34)], fill=PAPER, width=5)
+    d.line([(cx + 42, cy - 34), (cx + 42, cy + 34)], fill=PAPER, width=8)
+    d.line([(cx + 6, cy), (cx + 78, cy)], fill=PAPER, width=8)
+    d.text((cx, y1 - 14), "100,000 a year", font=load(SANS_B, 16),
+           fill=PAPER, anchor="ma")
 
-# footer
-d.text((W // 2, H - 26), "Also: UK and EU seal youth-mobility & food-trade deal  •  Basra pipeline blast kills 8  •  Gaza braces for winter",
-       font=font(REG, 15), fill=(170, 165, 155), anchor="mm")
+
+tile(0, (30, 70, 56), "COP31 goes to overtime",
+     ["Antalya talks stall as draft deal", "drops all mention of fossil fuels"], art_cop)
+tile(1, (36, 40, 70), "Russia pounds Ukraine",
+     ["400+ drones, 110+ missiles; strays", "land in Poland; Denmark expels attaché"], art_ukraine)
+tile(2, (70, 30, 34), "After the 'G-3' summit",
+     ["Trump, Xi, Putin met in Shenzhen;", "deal on humans-in-the-loop military AI"], art_g3)
+tile(3, (40, 40, 44), "US outages, cyber chief out",
+     ["Banks, flights, systems down; Trump", "fires National Cyber Director"], art_outage)
+tile(4, (60, 48, 28), "Myanmar guilty of genocide",
+     ["ICJ landmark ruling on the Rohingya;", "9–6, first time a state is found guilty"], art_icj)
+tile(5, (28, 58, 74), "UK and EU seal reset deal",
+     ["Youth mobility for 100,000 a year;", "food trade eased, carbon markets linked"], art_ukeu)
+
+# ------------------------------------------------------------------- footer
+d.text((W // 2, H - 24),
+       "Also: Basra pipeline blast kills at least 4  •  US–Iran talks stall as Hormuz attacks continue  •  NATO chief to visit Warsaw",
+       font=load(SANS_R, 14), fill=(170, 165, 155), anchor="mm")
 
 out = Path(__file__).resolve().parent.parent / "entry.png"
+img = canvas
 img.save(out, optimize=True)
 print(out, out.stat().st_size)
+
